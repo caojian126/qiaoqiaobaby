@@ -18,7 +18,7 @@ async function fetchModels(provider: Provider): Promise<string[]> {
     }
     const resp = await fetch(url, { headers });
     if (!resp.ok) return [];
-    const data = await resp.json();
+    const data: any = await resp.json();
     if (data && Array.isArray(data.data)) {
       return data.data
         .map((m: any) => m?.id)
