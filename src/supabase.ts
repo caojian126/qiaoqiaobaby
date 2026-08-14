@@ -2,9 +2,10 @@ import { Config } from './types';
 
 // 把一轮收发信息写入 Supabase：
 // 一条 role=user（用户输入），一条 role=assistant（AI 回复）
-// 表名和额外字段均可通过环境变量配置，不绑定任何特定表结构
+// 额外字段 = 环境变量静态兜底 + 请求头动态传入（动态优先）
 export async function writeChatLog(
   config: Config,
+  dynamicFields: Record<string, any>,
   userInput: string,
   assistantText: string
 ): Promise<void> {
@@ -13,9 +14,11 @@ export async function writeChatLog(
     return;
   }
 
+  const base = { ...config.supabaseExtraFields, ...dynamicFields };
+
   const rows = [
-    { ...config.supabaseExtraFields, role: 'user', content: userInput },
-    { ...config.supabaseExtraFields, role: 'assistant', content: assistantText },
+    { ...base, role: 'user', content: userInput },
+    { ...base, role: 'assistant', content: assistantText },
   ].filter((r) => r.content);
 
   if (!rows.length) return;

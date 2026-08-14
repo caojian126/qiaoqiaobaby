@@ -47,6 +47,16 @@ function sendError(res: Response, status: number, message: string): void {
   res.status(status).json({ error: { message, type: 'gateway_error' } });
 }
 
+// 从请求头收集动态字段（前端生成的值），映射到 Supabase 列
+function collectDynamicFields(req: Request): Record<string, any> {
+  const fields: Record<string, any> = {};
+  const assistantId = req.header('x-assistant-id');
+  const conversationId = req.header('x-conversation-id');
+  if (assistantId) fields.assistant_id = assistantId;
+  if (conversationId) fields.conversation_id = conversationId;
+  return fields;
+}
+
 // ---------- 流式 SSE 解析 ----------
 
 // 按行切分流
@@ -106,6 +116,7 @@ async function pipeStreamPassthrough(
   res: Response,
   format: 'openai' | 'anthropic',
   config: Config,
+  dynamicFields: Record<string, any>,
   userInput: string
 ): Promise<void> {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -160,7 +171,7 @@ async function pipeStreamPassthrough(
     }
   } finally {
     res.end();
-    await writeChatLog(config, userInput, aggregated);
+    await writeChatLog(config, dynamicFields, userInput, aggregated);
   }
 }
 
@@ -170,6 +181,7 @@ async function pipeStreamTransform(
   res: Response,
   transformer: StreamTransformer,
   config: Config,
+  dynamicFields: Record<string, any>,
   userInput: string
 ): Promise<void> {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -186,7 +198,7 @@ async function pipeStreamTransform(
     if (fin) res.write(fin);
   } finally {
     res.end();
-    await writeChatLog(config, userInput, transformer.aggregated());
+    await writeChatLog(config, dynamicFields, userInput, transformer.aggregated());
   }
 }
 
@@ -197,6 +209,7 @@ async function pipeNonStream(
   res: Response,
   transform: (data: any) => any,
   config: Config,
+  dynamicFields: Record<string, any>,
   userInput: string,
   assistantFormat: 'openai' | 'anthropic'
 ): Promise<void> {
@@ -205,7 +218,7 @@ async function pipeNonStream(
   const assistantText = extractAssistantText(out, assistantFormat);
 
   res.status(200).setHeader('Content-Type', 'application/json').send(JSON.stringify(out));
-  await writeChatLog(config, userInput, assistantText);
+  await writeChatLog(config, dynamicFields, userInput, assistantText);
 }
 
 // ---------- 端点处理器 ----------
@@ -224,14 +237,15 @@ export async function handleChatCompletion(
       req.header('x-provider')
     );
     const userInput = extractUserText(body);
+    const dynamicFields = collectDynamicFields(req);
 
     if (provider.format === 'openai') {
       const upstream = await callUpstream(provider, '/chat/completions', body, 'bearer');
       if (!upstream.ok) return forwardUpstreamError(upstream, res);
       if (body.stream) {
-        return pipeStreamPassthrough(upstream, res, 'openai', config, userInput);
+        return pipeStreamPassthrough(upstream, res, 'openai', config, dynamicFields, userInput);
       }
-      return pipeNonStream(upstream, res, (d) => d, config, userInput, 'openai');
+      return pipeNonStream(upstream, res, (d) => d, config, dynamicFields, userInput, 'openai');
     }
 
     // 供应商是 Anthropic 原生格式，需要转换
@@ -244,6 +258,7 @@ export async function handleChatCompletion(
         res,
         createAnthropicToOpenAIStream(),
         config,
+        dynamicFields,
         userInput
       );
     }
@@ -252,6 +267,7 @@ export async function handleChatCompletion(
       res,
       anthropicResToOpenAI,
       config,
+      dynamicFields,
       userInput,
       'openai'
     );
@@ -274,14 +290,15 @@ export async function handleMessages(
       req.header('x-provider')
     );
     const userInput = extractUserText(body);
+    const dynamicFields = collectDynamicFields(req);
 
     if (provider.format === 'anthropic') {
       const upstream = await callUpstream(provider, '/messages', body, 'anthropic');
       if (!upstream.ok) return forwardUpstreamError(upstream, res);
       if (body.stream) {
-        return pipeStreamPassthrough(upstream, res, 'anthropic', config, userInput);
+        return pipeStreamPassthrough(upstream, res, 'anthropic', config, dynamicFields, userInput);
       }
-      return pipeNonStream(upstream, res, (d) => d, config, userInput, 'anthropic');
+      return pipeNonStream(upstream, res, (d) => d, config, dynamicFields, userInput, 'anthropic');
     }
 
     // 供应商是 OpenAI 格式，需要转换
@@ -294,6 +311,7 @@ export async function handleMessages(
         res,
         createOpenAIToAnthropicStream(body.model),
         config,
+        dynamicFields,
         userInput
       );
     }
@@ -302,6 +320,7 @@ export async function handleMessages(
       res,
       openaiResToAnthropic,
       config,
+      dynamicFields,
       userInput,
       'anthropic'
     );

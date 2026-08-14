@@ -35,7 +35,7 @@
 | `SUPABASE_URL` | 否* | Supabase 项目 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | 否* | Supabase Service Role Key（用于绕过 RLS 写入） |
 | `SUPABASE_TABLE` | 否 | 写入的表名，默认 `chat_messages` |
-| `SUPABASE_EXTRA_FIELDS` | 否 | 额外固定字段（JSON），目标表有必填列时在这里补固定值 |
+| `SUPABASE_EXTRA_FIELDS` | 否 | 额外固定字段（JSON），作为静态兜底值 |
 | `PROVIDERS` | 是 | 上游供应商 JSON 数组（见下） |
 
 > *：不配置 Supabase 时网关仍可正常转发，只是不记录收发信息。
@@ -84,8 +84,18 @@
 { "role": "assistant", "content": "AI 回复的内容" }
 ```
 
-- `SUPABASE_TABLE`：写入的表名，默认 `chat_messages`
-- `SUPABASE_EXTRA_FIELDS`：可选的额外固定字段（JSON），会合并进每条记录
+### 动态字段（前端生成的值）
+
+如果前端会动态生成 `assistant_id`、`conversation_id` 等值，可以通过请求头传入，网关会原样写入对应列：
+
+| 请求头 | 写入列 |
+|--------|--------|
+| `X-Assistant-Id` | `assistant_id` |
+| `X-Conversation-Id` | `conversation_id` |
+
+动态值优先于 `SUPABASE_EXTRA_FIELDS` 里的静态值。
+
+### 表结构
 
 最简表结构（只需 `role` + `content` 即可工作）：
 
@@ -98,7 +108,7 @@ create table chat_messages (
 );
 ```
 
-如果你的表有额外必填字段，用 `SUPABASE_EXTRA_FIELDS` 补固定值即可，例如：
+如果你的表有额外必填字段，用 `SUPABASE_EXTRA_FIELDS` 补固定兜底值，或用上面的请求头动态传入，例如：
 
 ```
 SUPABASE_EXTRA_FIELDS={"assistant_id":"gateway","conversation_id":"default"}
@@ -121,6 +131,8 @@ SUPABASE_EXTRA_FIELDS={"assistant_id":"gateway","conversation_id":"default"}
 ```bash
 curl https://gateway.example.com/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "X-Assistant-Id: my-assistant" \
+  -H "X-Conversation-Id: conv-123" \
   -d '{
     "model": "gpt-4o",
     "messages": [{"role": "user", "content": "你好"}],
