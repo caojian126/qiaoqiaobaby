@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { Config, Provider } from './types';
 import { resolveProviders, pickProvider } from './config';
 import { writeChatLog } from './supabase';
@@ -38,17 +38,17 @@ async function callUpstream(
 }
 
 // 上游报错时，把错误原样透传回客户端
-async function forwardUpstreamError(upstream: Response, res: Response): Promise<void> {
+async function forwardUpstreamError(upstream: Response, res: ExpressResponse): Promise<void> {
   const text = await upstream.text().catch(() => '');
   res.status(upstream.status).setHeader('Content-Type', 'application/json').send(text);
 }
 
-function sendError(res: Response, status: number, message: string): void {
+function sendError(res: ExpressResponse, status: number, message: string): void {
   res.status(status).json({ error: { message, type: 'gateway_error' } });
 }
 
 // 从请求头收集动态字段（前端生成的值），映射到 Supabase 列
-function collectDynamicFields(req: Request): Record<string, any> {
+function collectDynamicFields(req: ExpressRequest): Record<string, any> {
   const fields: Record<string, any> = {};
   const assistantId = req.header('x-assistant-id');
   const conversationId = req.header('x-conversation-id');
@@ -113,7 +113,7 @@ async function* parseSSE(body: any): AsyncGenerator<{ event?: string; data: stri
 // 同格式透传（边转发边聚合文本用于记录）
 async function pipeStreamPassthrough(
   upstream: Response,
-  res: Response,
+  res: ExpressResponse,
   format: 'openai' | 'anthropic',
   config: Config,
   dynamicFields: Record<string, any>,
@@ -178,7 +178,7 @@ async function pipeStreamPassthrough(
 // 跨格式流式转换
 async function pipeStreamTransform(
   upstream: Response,
-  res: Response,
+  res: ExpressResponse,
   transformer: StreamTransformer,
   config: Config,
   dynamicFields: Record<string, any>,
@@ -206,7 +206,7 @@ async function pipeStreamTransform(
 
 async function pipeNonStream(
   upstream: Response,
-  res: Response,
+  res: ExpressResponse,
   transform: (data: any) => any,
   config: Config,
   dynamicFields: Record<string, any>,
@@ -225,8 +225,8 @@ async function pipeNonStream(
 
 // OpenAI 兼容端点 /v1/chat/completions
 export async function handleChatCompletion(
-  req: Request,
-  res: Response,
+  req: ExpressRequest,
+  res: ExpressResponse,
   config: Config
 ): Promise<void> {
   try {
@@ -279,8 +279,8 @@ export async function handleChatCompletion(
 
 // Anthropic 原生端点 /v1/messages
 export async function handleMessages(
-  req: Request,
-  res: Response,
+  req: ExpressRequest,
+  res: ExpressResponse,
   config: Config
 ): Promise<void> {
   try {
@@ -332,7 +332,7 @@ export async function handleMessages(
 }
 
 // 模型列表端点 /v1/models
-export function handleModels(_req: Request, res: Response, config: Config): void {
+export function handleModels(_req: ExpressRequest, res: ExpressResponse, config: Config): void {
   const seen = new Set<string>();
   const data: any[] = [];
   for (const p of config.providers) {
