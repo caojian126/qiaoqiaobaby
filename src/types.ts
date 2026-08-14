@@ -16,4 +16,5 @@ export interface Config {
   supabaseTable: string;                     // 写入的表名
   supabaseExtraFields: Record<string, any>;  // 额外固定字段（可选）
   gatewayApiKey: string;                     // 网关访问密钥（空 = 不鉴权）
+  defaultAssistantId: string;                // assistant_id 兜底值（前端不传时用）
 }

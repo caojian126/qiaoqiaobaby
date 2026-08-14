@@ -85,6 +85,7 @@ export function loadConfig(): Config {
     supabaseTable: String(process.env.SUPABASE_TABLE || 'chat_messages'),
     supabaseExtraFields,
     gatewayApiKey: String(process.env.GATEWAY_API_KEY || ''),
+    defaultAssistantId: String(process.env.DEFAULT_ASSISTANT_ID || 'gateway'),
   };
 }
 

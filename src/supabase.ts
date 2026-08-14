@@ -1,8 +1,10 @@
+import { randomUUID } from 'crypto';
 import { Config } from './types';
 
 // 把一轮收发信息写入 Supabase：
 // 一条 role=user（用户输入），一条 role=assistant（AI 回复）
-// 额外字段 = 环境变量静态兜底 + 请求头动态传入（动态优先）
+// 字段优先级：请求头动态值 > SUPABASE_EXTRA_FIELDS 静态值 > 自动兜底
+// assistant_id / conversation_id 没收到时自动生成兜底，保证必填字段不空
 export async function writeChatLog(
   config: Config,
   dynamicFields: Record<string, any>,
@@ -14,7 +16,13 @@ export async function writeChatLog(
     return;
   }
 
-  const base = { ...config.supabaseExtraFields, ...dynamicFields };
+  const merged = { ...config.supabaseExtraFields, ...dynamicFields };
+  const base = {
+    ...merged,
+    assistant_id: merged.assistant_id || config.defaultAssistantId,
+    conversation_id:
+      merged.conversation_id || `relay-${randomUUID().replace(/-/g, '')}`,
+  };
 
   const rows = [
     { ...base, role: 'user', content: userInput },
