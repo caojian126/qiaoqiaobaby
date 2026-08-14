@@ -15,4 +15,5 @@ export interface Config {
   supabaseKey: string;
   supabaseTable: string;                     // 写入的表名
   supabaseExtraFields: Record<string, any>;  // 额外固定字段（可选）
+  gatewayApiKey: string;                     // 网关访问密钥（空 = 不鉴权）
 }
