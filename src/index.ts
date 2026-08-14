@@ -1,5 +1,6 @@
 import express from 'express';
 import { loadConfig } from './config';
+import { startModelRefresh } from './models';
 import {
   handleChatCompletion,
   handleMessages,
@@ -42,7 +43,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'healthy' });
 });
 
-// 模型列表（OpenAI 兼容）
+// 模型列表（OpenAI 兼容，自动从供应商拉取）
 app.get('/v1/models', (req, res) => handleModels(req, res, config));
 
 // OpenAI 兼容端点（需要鉴权）
@@ -50,6 +51,9 @@ app.post('/v1/chat/completions', requireAuth, (req, res) => handleChatCompletion
 
 // Anthropic 原生端点（需要鉴权）
 app.post('/v1/messages', requireAuth, (req, res) => handleMessages(req, res, config));
+
+// 启动时自动拉取模型列表 + 定期刷新
+startModelRefresh(config.providers);
 
 app.listen(config.port, () => {
   console.log(`[gateway] AI Gateway 已启动，监听端口 ${config.port}`);

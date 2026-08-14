@@ -2,6 +2,7 @@ import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 import { Config, Provider } from './types';
 import { resolveProviders, pickProvider } from './config';
 import { writeChatLog } from './supabase';
+import { getProviderModels } from './models';
 import {
   extractUserText,
   extractAssistantText,
@@ -331,13 +332,18 @@ export async function handleMessages(
   }
 }
 
-// 模型列表端点 /v1/models
-export function handleModels(_req: ExpressRequest, res: ExpressResponse, config: Config): void {
+// 模型列表端点 /v1/models（自动从供应商拉取）
+export async function handleModels(
+  _req: ExpressRequest,
+  res: ExpressResponse,
+  config: Config
+): Promise<void> {
   const seen = new Set<string>();
   const data: any[] = [];
   for (const p of config.providers) {
-    for (const m of p.models) {
-      if (m === '*' || seen.has(m)) continue;
+    const models = await getProviderModels(p);
+    for (const m of models) {
+      if (seen.has(m)) continue;
       seen.add(m);
       data.push({ id: m, object: 'model', created: 0, owned_by: p.name });
     }
