@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Config, Provider } from './types';
-import { resolveProvider } from './config';
+import { resolveProviders, pickProvider } from './config';
 import { writeChatLog } from './supabase';
 import {
   extractUserText,
@@ -231,11 +231,12 @@ export async function handleChatCompletion(
 ): Promise<void> {
   try {
     const body = req.body || {};
-    const provider = resolveProvider(
+    const matched = resolveProviders(
       config.providers,
       body.model,
       req.header('x-provider')
     );
+    const provider = pickProvider(body.model, matched);
     const userInput = extractUserText(body);
     const dynamicFields = collectDynamicFields(req);
 
@@ -284,11 +285,12 @@ export async function handleMessages(
 ): Promise<void> {
   try {
     const body = req.body || {};
-    const provider = resolveProvider(
+    const matched = resolveProviders(
       config.providers,
       body.model,
       req.header('x-provider')
     );
+    const provider = pickProvider(body.model, matched);
     const userInput = extractUserText(body);
     const dynamicFields = collectDynamicFields(req);
 
